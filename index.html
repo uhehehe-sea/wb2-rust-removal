@@ -1,0 +1,1343 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Hanwha RDM WB2 부식·녹제거 관리 시스템</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#eff6ff',
+              100: '#dbeafe',
+              500: '#3b82f6',
+              600: '#2563eb',
+              700: '#1d4ed8',
+              800: '#1e40af',
+              900: '#1e3a8a',
+            },
+            status: {
+              cleaned: '#0ea5e9', // Sky blue
+              replaced: '#10b981', // Emerald green
+              c: '#ef4444', // Red
+              b: '#f97316', // Orange
+              a: '#eab308', // Yellow
+              none: '#9ca3af', // Gray
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    @media print {
+      body { background: white !important; color: black !important; }
+      .no-print { display: none !important; }
+      .print-only { display: block !important; }
+      .page-break { page-break-before: always; }
+      .shadow-sm, .shadow-md, .shadow-lg { box-shadow: none !important; }
+      .border { border-color: #cbd5e1 !important; }
+    }
+    .print-only { display: none; }
+    /* 커스텀 스크롤바 */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #f1f5f9; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col font-sans antialiased">
+
+  <!-- 헤더 (네비게이션) -->
+  <header class="bg-slate-900 text-white sticky top-0 z-40 shadow-md no-print">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-16">
+        <div class="flex items-center space-x-3">
+          <div class="w-10 h-10 rounded-lg bg-blue-600 flex items-center justify-center font-bold text-xl shadow">
+            <i class="fa-solid fa-shield-halved text-white"></i>
+          </div>
+          <div>
+            <h1 class="text-lg font-bold tracking-tight text-white flex items-center gap-2">
+              Hanwha RDM WB2 부식·녹제거 관리 시스템
+              <span class="text-xs font-normal px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30">POET Team</span>
+            </h1>
+            <p class="text-xs text-slate-400">실시간 위치별 녹제거 점검 및 전후(Before & After) 이력 추적</p>
+          </div>
+        </div>
+
+        <!-- 탭 네비게이션 버튼 (PC) -->
+        <nav class="hidden md:flex space-x-1">
+          <button onclick="switchTab('dashboard')" id="nav-dashboard" class="nav-btn px-3 py-2 rounded-md text-sm font-medium bg-blue-600 text-white flex items-center gap-2">
+            <i class="fa-solid fa-chart-pie"></i> 매트릭스 대시보드
+          </button>
+          <button onclick="switchTab('inspect')" id="nav-inspect" class="nav-btn px-3 py-2 rounded-md text-sm font-medium text-slate-300 hover:bg-slate-800 hover:text-white flex items-center gap-2">
+            <i class="fa-solid fa-camera"></i> 현장 점검 & 기록
+          </button>
+          <button onclick="switchTab('gallery')" id="nav-gallery" class="nav-btn px-3 py-2 rounded-md text-sm font-medium text-slate-300 hover:bg-slate-800 hover:text-white flex items-center gap-2">
+            <i class="fa-solid fa-images"></i> Before & After 비교
+          </button>
+          <button onclick="switchTab('report')" id="nav-report" class="nav-btn px-3 py-2 rounded-md text-sm font-medium text-slate-300 hover:bg-slate-800 hover:text-white flex items-center gap-2">
+            <i class="fa-solid fa-file-lines"></i> 결과 보고서
+          </button>
+        </nav>
+
+        <!-- 우측 액션 버튼 (데이터 백업/내보내기) -->
+        <div class="flex items-center space-x-2">
+          <button onclick="exportData()" title="데이터 JSON 백업" class="p-2 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg text-sm flex items-center gap-1 border border-slate-700">
+            <i class="fa-solid fa-download"></i> <span class="hidden sm:inline">백업</span>
+          </button>
+          <label title="백업 복원" class="p-2 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg text-sm flex items-center gap-1 border border-slate-700 cursor-pointer">
+            <i class="fa-solid fa-upload"></i> <span class="hidden sm:inline">복원</span>
+            <input type="file" id="importFileInput" onchange="importData(event)" accept=".json" class="hidden">
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- 모바일 하단 네비게이션 탭 바 -->
+    <div class="md:hidden border-t border-slate-800 grid grid-cols-4 bg-slate-900/95 backdrop-blur text-center py-1">
+      <button onclick="switchTab('dashboard')" class="mobile-nav-btn py-2 text-blue-400 text-xs flex flex-col items-center">
+        <i class="fa-solid fa-chart-pie text-base mb-1"></i> 대시보드
+      </button>
+      <button onclick="switchTab('inspect')" class="mobile-nav-btn py-2 text-slate-400 text-xs flex flex-col items-center">
+        <i class="fa-solid fa-camera text-base mb-1"></i> 점검기록
+      </button>
+      <button onclick="switchTab('gallery')" class="mobile-nav-btn py-2 text-slate-400 text-xs flex flex-col items-center">
+        <i class="fa-solid fa-images text-base mb-1"></i> 전후비교
+      </button>
+      <button onclick="switchTab('report')" class="mobile-nav-btn py-2 text-slate-400 text-xs flex flex-col items-center">
+        <i class="fa-solid fa-file-lines text-base mb-1"></i> 보고서
+      </button>
+    </div>
+  </header>
+
+  <!-- 메인 컨텐츠 영역 -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
+
+    <!-- ========================================== -->
+    <!-- 1. 대시보드 탭 (종합 매트릭스 & 지표) -->
+    <!-- ========================================== -->
+    <section id="tab-dashboard" class="tab-content space-y-6">
+      
+      <!-- 상단 요약 카드 (KPIs) -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <!-- 1) 부식지수 개선율 -->
+        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
+          <div class="flex items-center justify-between text-slate-500 mb-2">
+            <span class="text-xs font-semibold uppercase tracking-wider">부식지수 합계</span>
+            <span class="p-2 bg-blue-50 text-blue-600 rounded-lg text-sm"><i class="fa-solid fa-chart-line"></i></span>
+          </div>
+          <div>
+            <div class="flex items-baseline gap-2">
+              <span id="kpi-current-index" class="text-2xl font-black text-slate-900">0</span>
+              <span class="text-xs text-slate-400 font-medium">/ 10월 154</span>
+            </div>
+            <p id="kpi-index-change" class="text-xs font-semibold text-emerald-600 mt-1 flex items-center gap-1">
+              <i class="fa-solid fa-arrow-down"></i> 개선율 0% 달성
+            </p>
+          </div>
+        </div>
+
+        <!-- 2) C등급 잔여 개소 -->
+        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
+          <div class="flex items-center justify-between text-slate-500 mb-2">
+            <span class="text-xs font-semibold uppercase tracking-wider">C등급 (심함) 잔여</span>
+            <span class="p-2 bg-red-50 text-red-600 rounded-lg text-sm"><i class="fa-solid fa-triangle-exclamation"></i></span>
+          </div>
+          <div>
+            <div class="flex items-baseline gap-2">
+              <span id="kpi-c-count" class="text-2xl font-black text-red-600">0</span>
+              <span class="text-xs text-slate-400 font-medium">/ 10월 21개소</span>
+            </div>
+            <p id="kpi-c-diff" class="text-xs font-semibold text-emerald-600 mt-1 flex items-center gap-1">
+              <i class="fa-solid fa-check"></i> 0개소 조치 완료
+            </p>
+          </div>
+        </div>
+
+        <!-- 3) 녹제거/조치 완료율 -->
+        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
+          <div class="flex items-center justify-between text-slate-500 mb-2">
+            <span class="text-xs font-semibold uppercase tracking-wider">녹제거 완료율</span>
+            <span class="p-2 bg-sky-50 text-sky-600 rounded-lg text-sm"><i class="fa-solid fa-sparkles"></i></span>
+          </div>
+          <div>
+            <div class="flex items-baseline gap-2">
+              <span id="kpi-clean-rate" class="text-2xl font-black text-sky-600">0%</span>
+              <span id="kpi-clean-count" class="text-xs text-slate-400 font-medium">(0 / 74구간)</span>
+            </div>
+            <div class="w-full bg-slate-100 rounded-full h-1.5 mt-2 overflow-hidden">
+              <div id="kpi-clean-bar" class="bg-sky-500 h-1.5 rounded-full" style="width: 0%"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 4) 점검 등록 사진 수 -->
+        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
+          <div class="flex items-center justify-between text-slate-500 mb-2">
+            <span class="text-xs font-semibold uppercase tracking-wider">기록된 증빙 사진</span>
+            <span class="p-2 bg-emerald-50 text-emerald-600 rounded-lg text-sm"><i class="fa-solid fa-camera"></i></span>
+          </div>
+          <div>
+            <div class="flex items-baseline gap-2">
+              <span id="kpi-photo-count" class="text-2xl font-black text-slate-800">0장</span>
+              <span class="text-xs text-slate-400 font-medium">After 사진</span>
+            </div>
+            <p class="text-xs font-semibold text-slate-500 mt-1 flex items-center gap-1">
+              <i class="fa-solid fa-cloud-arrow-up text-blue-500"></i> 로컬 DB 안전보관 중
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- 종합 매트릭스 그리드 (14개 PART x 22개 ZONE) -->
+      <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="p-4 sm:p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
+              <i class="fa-solid fa-table-cells text-blue-600"></i> WB2 전체 부식 및 녹제거 현황 종합 매트릭스
+            </h2>
+            <p class="text-xs text-slate-500 mt-0.5">셀을 클릭하면 해당 위치의 녹제거 상태를 즉시 입력/수정할 수 있습니다.</p>
+          </div>
+          
+          <!-- 범례 (Legend) -->
+          <div class="flex flex-wrap items-center gap-2 text-xs">
+            <span class="flex items-center gap-1 font-medium text-slate-700"><span class="w-3.5 h-3.5 rounded bg-sky-500 inline-block"></span> CL (제거완료)</span>
+            <span class="flex items-center gap-1 font-medium text-slate-700"><span class="w-3.5 h-3.5 rounded bg-emerald-500 inline-block"></span> RP (교체)</span>
+            <span class="flex items-center gap-1 font-medium text-slate-700"><span class="w-3.5 h-3.5 rounded bg-yellow-400 inline-block"></span> A (경미)</span>
+            <span class="flex items-center gap-1 font-medium text-slate-700"><span class="w-3.5 h-3.5 rounded bg-orange-500 inline-block"></span> B (보통)</span>
+            <span class="flex items-center gap-1 font-medium text-slate-700"><span class="w-3.5 h-3.5 rounded bg-red-500 inline-block"></span> C (심함)</span>
+          </div>
+        </div>
+
+        <!-- 매트릭스 테이블 스크롤 컨테이너 -->
+        <div class="overflow-x-auto">
+          <table class="w-full text-center border-collapse text-xs whitespace-nowrap" id="matrixTable">
+            <thead>
+              <tr class="bg-slate-100 text-slate-700 border-b border-slate-200 font-bold">
+                <th class="p-2.5 text-left sticky left-0 bg-slate-100 z-10 border-r border-slate-200 shadow-[2px_0_4px_rgba(0,0,0,0.04)]">설비 / PART</th>
+                <th class="p-2 border-r border-slate-200 bg-slate-200/70" title="POL-1 (1~6)">POL-1</th>
+                <th class="p-2 border-r border-slate-200">Drive-2</th>
+                <th class="p-2 border-r border-slate-200 bg-slate-200/70" title="POL-2 (1~4)">POL-2 (1-4)</th>
+                <th class="p-2 border-r border-slate-200">POL-2-5</th>
+                <th class="p-2 border-r border-slate-200">POL-2-6</th>
+                <th class="p-2 border-r border-slate-200 bg-amber-50">Drive-3</th>
+                <th class="p-2 border-r border-slate-200">POL-3-1</th>
+                <th class="p-2 border-r border-slate-200">POL-3-2</th>
+                <th class="p-2 border-r border-slate-200">POL-3-3</th>
+                <th class="p-2 border-r border-slate-200">POL-3-4</th>
+                <th class="p-2 border-r border-slate-200">POL-3-5</th>
+                <th class="p-2 border-r border-slate-200">POL-3-6</th>
+                <th class="p-2 border-r border-slate-200 bg-rose-50 font-black text-rose-700">RINSE-2</th>
+                <th class="p-2 border-r border-slate-200">Drive-4</th>
+                <th class="p-2 font-bold bg-slate-200/90 text-slate-800">부식지수 (10월 → 현재)</th>
+              </tr>
+            </thead>
+            <tbody id="matrixTableBody" class="divide-y divide-slate-200 text-slate-700">
+              <!-- JS 동적 렌더링 -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 하부 유틸리티 / 펌프 점검 카드 섹션 (11월 조사 연계) -->
+      <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4">
+        <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div>
+            <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
+              <i class="fa-solid fa-wrench text-orange-500"></i> 하부 유틸리티 / 펌프 체결부 녹제거 및 볼트 교체 현황
+            </h2>
+            <p class="text-xs text-slate-500 mt-0.5">11월 긴급 조사 대상 (PCW 배관, 약액 펌프 볼트, 알루미늄 프로파일 등)</p>
+          </div>
+          <button onclick="openSubInspectionModal()" class="px-3 py-1.5 bg-orange-50 text-orange-600 hover:bg-orange-100 rounded-lg text-xs font-semibold flex items-center gap-1 border border-orange-200">
+            <i class="fa-solid fa-plus"></i> 하부 점검 추가/수정
+          </button>
+        </div>
+
+        <div id="subUtilityGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          <!-- JS 동적 렌더링 -->
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ========================================== -->
+    <!-- 2. 현장 점검 & 기록 탭 (Inspection Form) -->
+    <!-- ========================================== -->
+    <section id="tab-inspect" class="tab-content hidden space-y-6">
+      <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-4 sm:p-6 max-w-3xl mx-auto space-y-6">
+        
+        <div class="border-b border-slate-200 pb-4">
+          <h2 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+            <i class="fa-solid fa-camera-retro text-blue-600"></i> 현장 위치별 녹제거 점검 및 사진 등록
+          </h2>
+          <p class="text-xs text-slate-500 mt-1">현장에서 녹제거 작업 완료 직후 상태와 증빙 사진을 기록하세요.</p>
+        </div>
+
+        <form id="inspectForm" onsubmit="saveInspection(event)" class="space-y-6">
+          
+          <!-- 1) 위치 선택 (설비 / PART / ZONE) -->
+          <div class="space-y-4">
+            <label class="block text-xs font-bold uppercase tracking-wider text-slate-700">1. 설비 및 위치 선택</label>
+            
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <!-- 설비 선택 (WB2-1 ~ WB2-7) -->
+              <div>
+                <label class="block text-xs text-slate-500 mb-1">설비 (Unit)</label>
+                <select id="inputEquip" onchange="onEquipOrPartChange()" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none">
+                  <option value="WB2-1">WB2-1 (최우선관리)</option>
+                  <option value="WB2-2">WB2-2</option>
+                  <option value="WB2-3">WB2-3</option>
+                  <option value="WB2-4">WB2-4 (중점관리)</option>
+                  <option value="WB2-5">WB2-5</option>
+                  <option value="WB2-6">WB2-6</option>
+                  <option value="WB2-7">WB2-7</option>
+                </select>
+              </div>
+
+              <!-- 파트 선택 (PART1, PART2) -->
+              <div>
+                <label class="block text-xs text-slate-500 mb-1">파트 (PART)</label>
+                <select id="inputPart" onchange="onEquipOrPartChange()" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none">
+                  <option value="PART1">PART 1</option>
+                  <option value="PART2">PART 2</option>
+                </select>
+              </div>
+
+              <!-- 공정/구간 (ZONE) -->
+              <div>
+                <label class="block text-xs text-slate-500 mb-1">점검 구간 (ZONE)</label>
+                <select id="inputZone" onchange="onZoneSelectChange()" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none">
+                  <!-- 동적 로드 -->
+                </select>
+              </div>
+            </div>
+
+            <!-- 선택 위치의 기존 10월 조사 상태 알림 배너 -->
+            <div id="zoneHistoryBanner" class="p-3 bg-slate-50 rounded-lg border border-slate-200 flex items-center justify-between text-xs">
+              <span class="text-slate-600 font-medium">10월 조사 기존 상태:</span>
+              <span id="zoneHistoryStatus" class="font-bold px-2 py-0.5 rounded bg-slate-200 text-slate-700">미기록</span>
+            </div>
+          </div>
+
+          <!-- 2) 녹제거 후 현재 상태 선택 -->
+          <div class="space-y-3">
+            <label class="block text-xs font-bold uppercase tracking-wider text-slate-700">2. 녹제거 후 판정 상태</label>
+            <div class="grid grid-cols-2 sm:grid-cols-5 gap-2">
+              <label class="cursor-pointer">
+                <input type="radio" name="currentStatus" value="CL" class="peer hidden" checked>
+                <div class="p-3 rounded-xl border border-slate-200 peer-checked:border-sky-500 peer-checked:bg-sky-50 text-center transition flex flex-col items-center">
+                  <span class="w-4 h-4 rounded-full bg-sky-500 mb-1"></span>
+                  <span class="text-sm font-bold text-sky-800">CL</span>
+                  <span class="text-[11px] text-slate-500">녹제거 완료</span>
+                </div>
+              </label>
+
+              <label class="cursor-pointer">
+                <input type="radio" name="currentStatus" value="RP" class="peer hidden">
+                <div class="p-3 rounded-xl border border-slate-200 peer-checked:border-emerald-500 peer-checked:bg-emerald-50 text-center transition flex flex-col items-center">
+                  <span class="w-4 h-4 rounded-full bg-emerald-500 mb-1"></span>
+                  <span class="text-sm font-bold text-emerald-800">RP</span>
+                  <span class="text-[11px] text-slate-500">신품 교체</span>
+                </div>
+              </label>
+
+              <label class="cursor-pointer">
+                <input type="radio" name="currentStatus" value="A" class="peer hidden">
+                <div class="p-3 rounded-xl border border-slate-200 peer-checked:border-yellow-500 peer-checked:bg-yellow-50 text-center transition flex flex-col items-center">
+                  <span class="w-4 h-4 rounded-full bg-yellow-400 mb-1"></span>
+                  <span class="text-sm font-bold text-yellow-800">A</span>
+                  <span class="text-[11px] text-slate-500">경미/착색</span>
+                </div>
+              </label>
+
+              <label class="cursor-pointer">
+                <input type="radio" name="currentStatus" value="B" class="peer hidden">
+                <div class="p-3 rounded-xl border border-slate-200 peer-checked:border-orange-500 peer-checked:bg-orange-50 text-center transition flex flex-col items-center">
+                  <span class="w-4 h-4 rounded-full bg-orange-500 mb-1"></span>
+                  <span class="text-sm font-bold text-orange-800">B</span>
+                  <span class="text-[11px] text-slate-500">보통/일부남음</span>
+                </div>
+              </label>
+
+              <label class="cursor-pointer col-span-2 sm:col-span-1">
+                <input type="radio" name="currentStatus" value="C" class="peer hidden">
+                <div class="p-3 rounded-xl border border-slate-200 peer-checked:border-red-500 peer-checked:bg-red-50 text-center transition flex flex-col items-center">
+                  <span class="w-4 h-4 rounded-full bg-red-500 mb-1"></span>
+                  <span class="text-sm font-bold text-red-800">C</span>
+                  <span class="text-[11px] text-slate-500">심함/모재손상</span>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <!-- 3) 조치 내역 태그 선택 -->
+          <div class="space-y-2">
+            <label class="block text-xs font-bold uppercase tracking-wider text-slate-700">3. 조치 내역 (다중 선택)</label>
+            <div class="flex flex-wrap gap-2 text-xs">
+              <label class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-white cursor-pointer hover:bg-slate-50">
+                <input type="checkbox" name="actionTag" value="약품 녹제거" class="rounded text-blue-600"> 약품 녹제거
+              </label>
+              <label class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-white cursor-pointer hover:bg-slate-50">
+                <input type="checkbox" name="actionTag" value="샌딩/스크레이핑" class="rounded text-blue-600"> 샌딩/스크레이핑
+              </label>
+              <label class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-white cursor-pointer hover:bg-slate-50">
+                <input type="checkbox" name="actionTag" value="중화 세척" class="rounded text-blue-600"> 중화 세척
+              </label>
+              <label class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-white cursor-pointer hover:bg-slate-50">
+                <input type="checkbox" name="actionTag" value="방청 코팅 도포" class="rounded text-blue-600"> 방청 코팅 도포
+              </label>
+              <label class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-white cursor-pointer hover:bg-slate-50">
+                <input type="checkbox" name="actionTag" value="SUS316L 볼트 교체" class="rounded text-blue-600"> SUS316L 볼트 교체
+              </label>
+              <label class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-white cursor-pointer hover:bg-slate-50">
+                <input type="checkbox" name="actionTag" value="테플론 보호캡 장착" class="rounded text-blue-600"> 테플론 보호캡 장착
+              </label>
+            </div>
+          </div>
+
+          <!-- 4) 사진 촬영 및 업로드 (카메라 연동) -->
+          <div class="space-y-3">
+            <label class="block text-xs font-bold uppercase tracking-wider text-slate-700">4. 녹제거 후 증빙 사진 등록 (After)</label>
+            
+            <div class="flex flex-col sm:flex-row gap-4">
+              <!-- 사진 미리보기 박스 -->
+              <div class="w-full sm:w-1/2 aspect-video bg-slate-100 border-2 border-dashed border-slate-300 rounded-xl overflow-hidden flex flex-col items-center justify-center relative text-slate-400">
+                <img id="afterPhotoPreview" class="w-full h-full object-cover hidden" alt="녹제거 후 사진">
+                <div id="afterPhotoPlaceholder" class="text-center p-4">
+                  <i class="fa-solid fa-camera text-3xl mb-2 text-slate-300"></i>
+                  <p class="text-xs">사진을 촬영하거나 업로드하세요</p>
+                </div>
+              </div>
+
+              <!-- 촬영/업로드 버튼 컨트롤 -->
+              <div class="flex-1 flex flex-col justify-center gap-2">
+                <label class="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold flex items-center justify-center gap-2 cursor-pointer shadow-sm transition">
+                  <i class="fa-solid fa-camera"></i> 스마트폰 카메라로 촬영
+                  <input type="file" accept="image/*" capture="environment" onchange="handlePhotoUpload(event)" class="hidden">
+                </label>
+                <label class="w-full py-2 px-4 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-lg text-sm font-medium flex items-center justify-center gap-2 cursor-pointer transition">
+                  <i class="fa-solid fa-folder-open"></i> 앨범에서 사진 선택
+                  <input type="file" accept="image/*" onchange="handlePhotoUpload(event)" class="hidden">
+                </label>
+                <button type="button" onclick="clearPhoto()" class="text-xs text-red-500 hover:underline text-left mt-1">사진 삭제</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 5) 점검자 및 작업 메모 -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs text-slate-500 mb-1">작업자 (점검자)</label>
+              <input type="text" id="inputInspector" value="서현우 대리" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none">
+            </div>
+            <div>
+              <label class="block text-xs text-slate-500 mb-1">작업 일자</label>
+              <input type="date" id="inputDate" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none">
+            </div>
+            <div class="sm:col-span-2">
+              <label class="block text-xs text-slate-500 mb-1">특이사항 및 작업 메모</label>
+              <textarea id="inputNotes" rows="2" placeholder="예: 약품 도포 15분 후 브러싱 완료, 모재 Pitting 흔적 없음." class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none"></textarea>
+            </div>
+          </div>
+
+          <!-- 제출 버튼 -->
+          <div class="pt-4 border-t border-slate-200 flex justify-end gap-3">
+            <button type="button" onclick="switchTab('dashboard')" class="px-5 py-2.5 rounded-lg border border-slate-300 text-slate-700 text-sm font-semibold hover:bg-slate-50">취소</button>
+            <button type="submit" class="px-6 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold shadow flex items-center gap-2">
+              <i class="fa-solid fa-floppy-disk"></i> 점검 및 녹제거 결과 저장
+            </button>
+          </div>
+
+        </form>
+      </div>
+    </section>
+
+    <!-- ========================================== -->
+    <!-- 3. Before & After 비교 갤러리 탭 -->
+    <!-- ========================================== -->
+    <section id="tab-gallery" class="tab-content hidden space-y-6">
+      
+      <!-- 상단 필터 바 -->
+      <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-3">
+        <div class="flex items-center gap-2">
+          <span class="text-xs font-bold text-slate-600">필터:</span>
+          <select id="galleryFilterEquip" onchange="renderGallery()" class="text-xs px-2.5 py-1.5 border border-slate-300 rounded-lg bg-white">
+            <option value="ALL">전체 설비 보기</option>
+            <option value="WB2-1">WB2-1</option>
+            <option value="WB2-2">WB2-2</option>
+            <option value="WB2-3">WB2-3</option>
+            <option value="WB2-4">WB2-4</option>
+            <option value="WB2-5">WB2-5</option>
+            <option value="WB2-6">WB2-6</option>
+            <option value="WB2-7">WB2-7</option>
+          </select>
+          <select id="galleryFilterStatus" onchange="renderGallery()" class="text-xs px-2.5 py-1.5 border border-slate-300 rounded-lg bg-white">
+            <option value="ALL">전체 상태</option>
+            <option value="CL">CL (제거완료 건만)</option>
+            <option value="C">C (미조치/심함)</option>
+            <option value="RP">RP (교체완료)</option>
+          </select>
+        </div>
+
+        <span id="galleryCountLabel" class="text-xs text-slate-500 font-medium">총 0건 표시 중</span>
+      </div>
+
+      <!-- 갤러리 카드 그리드 -->
+      <div id="galleryGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <!-- JS 동적 렌더링 -->
+      </div>
+    </section>
+
+    <!-- ========================================== -->
+    <!-- 4. 결과 보고서 탭 (인쇄/PDF 최적화) -->
+    <!-- ========================================== -->
+    <section id="tab-report" class="tab-content hidden space-y-6">
+      
+      <!-- 인쇄 액션 바 -->
+      <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between no-print">
+        <div>
+          <h2 class="text-base font-bold text-slate-900">녹제거 조치 결과 공식 보고서</h2>
+          <p class="text-xs text-slate-500">이 화면은 브라우저 인쇄(Ctrl+P) 및 PDF 저장에 최적화되어 있습니다.</p>
+        </div>
+        <button onclick="window.print()" class="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-sm font-semibold flex items-center gap-2 shadow">
+          <i class="fa-solid fa-print"></i> 보고서 인쇄 / PDF 저장
+        </button>
+      </div>
+
+      <!-- 정식 보고서 문서 본문 (A4 규격 스타일) -->
+      <div class="bg-white p-6 sm:p-10 rounded-xl border border-slate-200 shadow-sm space-y-8 text-slate-900">
+        
+        <!-- 보고서 헤더 -->
+        <div class="border-b-2 border-slate-900 pb-4 flex justify-between items-end">
+          <div>
+            <span class="text-xs font-bold text-blue-600 uppercase tracking-widest">POET Team 설비개선 기술보고</span>
+            <h1 class="text-2xl font-black mt-1">Hanwha RDM WB2 부식 제거 조치 결과 보고</h1>
+          </div>
+          <div class="text-right text-xs text-slate-600 space-y-1">
+            <p><strong>보고일 :</strong> <span id="reportDateText">2026.11.23</span></p>
+            <p><strong>부서명 :</strong> POET Team</p>
+            <p><strong>작성 :</strong> 서현우 대리, 제이슨</p>
+          </div>
+        </div>
+
+        <!-- 1. 종합 개선 요약 -->
+        <div class="space-y-3">
+          <h3 class="text-sm font-bold uppercase tracking-wider text-slate-800 flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-blue-600"></span> 1. 조치 결과 요약 (10월 부식 $\rightarrow$ 녹제거 완료)
+          </h3>
+          <div class="grid grid-cols-3 gap-4 text-center border border-slate-200 rounded-lg p-4 bg-slate-50">
+            <div>
+              <p class="text-xs text-slate-500">부식지수 변화</p>
+              <p class="text-xl font-bold mt-1 text-slate-800">
+                154점 <span class="text-blue-600">→ <span id="reportIndexNow">0</span>점</span>
+              </p>
+              <p id="reportIndexDiffText" class="text-xs text-emerald-600 font-semibold mt-0.5">▼ 0점 개선</p>
+            </div>
+            <div>
+              <p class="text-xs text-slate-500">C등급(심함) 잔여</p>
+              <p class="text-xl font-bold mt-1 text-slate-800">
+                21개소 <span class="text-emerald-600">→ <span id="reportCRemain">0</span>개소</span>
+              </p>
+              <p id="reportCDiffText" class="text-xs text-emerald-600 font-semibold mt-0.5">21개소 조치 완료</p>
+            </div>
+            <div>
+              <p class="text-xs text-slate-500">조치 완료율 (CL+RP)</p>
+              <p id="reportRateText" class="text-xl font-bold mt-1 text-sky-600">0%</p>
+              <p class="text-xs text-slate-500 mt-0.5">전체 74개 부식구간 대상</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. 매트릭스 표 복제본 (보고서용) -->
+        <div class="space-y-3">
+          <h3 class="text-sm font-bold uppercase tracking-wider text-slate-800 flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-blue-600"></span> 2. 전 설비 조치 후 매트릭스 종합
+          </h3>
+          <div class="overflow-x-auto border border-slate-200 rounded-lg">
+            <table class="w-full text-center border-collapse text-[11px]" id="reportMatrixTable">
+              <!-- JS 동적 복제 -->
+            </table>
+          </div>
+        </div>
+
+        <!-- 3. 주요 전후 비교 사진 (Top Cases) -->
+        <div class="space-y-3 page-break">
+          <h3 class="text-sm font-bold uppercase tracking-wider text-slate-800 flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-blue-600"></span> 3. 핵심 취약 구간 Before & After 조치 사진
+          </h3>
+          <div id="reportPhotoGrid" class="grid grid-cols-2 gap-4">
+            <!-- JS 동적 렌더링 -->
+          </div>
+        </div>
+
+        <!-- 4. 향후 재발 방지 대책 -->
+        <div class="space-y-2 border-t border-slate-200 pt-4 text-xs text-slate-700 leading-relaxed">
+          <h4 class="font-bold text-slate-900">4. 향후 재발 방지 대책 및 조치 계획</h4>
+          <ul class="list-disc pl-5 space-y-1">
+            <li><strong>Acid Bath 조간 실링 보강:</strong> 산성 GAS 유입의 근본 원인인 조간 틈새에 불소계 실링재 시공 완료 및 주기적 기밀성 점검.</li>
+            <li><strong>하부 펌프 볼트 내식화:</strong> 발청된 탄소강/일반 볼트를 SUS316L 재질로 전면 교체하고 테플론 Sealing Cap 장착.</li>
+            <li><strong>국소 배기 풍량 밸런싱:</strong> POL-3 및 RINSE-2 구간의 차압 상시 모니터링 체계 가동.</li>
+          </ul>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- 하부 유틸리티 점검 모달 (11월 조사 항목) -->
+  <div id="subModal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl max-w-lg w-full p-6 space-y-4 shadow-xl">
+      <div class="flex items-center justify-between border-b border-slate-200 pb-3">
+        <h3 class="text-base font-bold text-slate-900">하부 유틸리티 녹제거 및 조치 입력</h3>
+        <button onclick="closeSubModal()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+      </div>
+
+      <div class="space-y-3 text-xs">
+        <div>
+          <label class="block text-slate-500 mb-1">대상 부품/위치</label>
+          <select id="modalSubPartSelect" class="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white">
+            <option value="WB2-1 P1 배기 PCW">WB2-1 P1 배기 PCW 배관</option>
+            <option value="WB2-1 P1 Drive-3 bath 내부">WB2-1 P1 Drive-3 bath 내부</option>
+            <option value="WB2-1 P1 Rinse-2 Bath 내부">WB2-1 P1 Rinse-2 Bath 내부</option>
+            <option value="WB2-1 P2 Drive-4 pump">WB2-1 P2 Drive-4 pump 볼트</option>
+            <option value="WB2-1 P2 O3-1">WB2-1 P2 O3-1 pump 볼트</option>
+            <option value="WB2-1 P2 Rinse-3 Pump">WB2-1 P2 Rinse-3 Pump 볼트</option>
+            <option value="WB2-1 P2 O3-2 알루미늄 프로파일">WB2-1 P2 O3-2 알루미늄 프로파일</option>
+            <option value="WB2-1 P2 O3-2 pump">WB2-1 P2 O3-2 pump 볼트</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-slate-500 mb-1">조치 후 상태</label>
+          <select id="modalSubStatus" class="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white font-bold">
+            <option value="CL" class="text-sky-600">CL (녹제거 완료 / 방청도포)</option>
+            <option value="RP" class="text-emerald-600">RP (SUS316L 신품 교체)</option>
+            <option value="B" class="text-orange-600">B (보통 / 작업 대기)</option>
+            <option value="C" class="text-red-600">C (심함 / 긴급교체 필요)</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-slate-500 mb-1">조치 내역 메모</label>
+          <input type="text" id="modalSubNotes" placeholder="예: 볼트 6개소 SUS316L 전면 교체 완료" class="w-full p-2 border border-slate-300 rounded-lg text-sm">
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-2 pt-2 border-t border-slate-100">
+        <button onclick="closeSubModal()" class="px-4 py-2 border rounded-lg text-xs font-semibold">닫기</button>
+        <button onclick="saveSubInspection()" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-xs font-bold">저장</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 푸터 -->
+  <footer class="bg-slate-900 border-t border-slate-800 text-slate-500 text-xs py-4 text-center no-print">
+    Hanwha RDM WB2 Corrosion & Rust Removal Tracker &copy; 2026 POET Team
+  </footer>
+
+  <!-- ========================================== -->
+  <!-- 어플리케이션 스크립트 (Data & Controller) -->
+  <!-- ========================================== -->
+  <script>
+    // 1. 표준 데이터 셋 정의 (14개 PART x 22개 ZONE)
+    const PARTS = [
+      'WB2-1 PART1', 'WB2-1 PART2',
+      'WB2-2 PART1', 'WB2-2 PART2',
+      'WB2-3 PART1', 'WB2-3 PART2',
+      'WB2-4 PART1', 'WB2-4 PART2',
+      'WB2-5 PART1', 'WB2-5 PART2',
+      'WB2-6 PART1', 'WB2-6 PART2',
+      'WB2-7 PART1', 'WB2-7 PART2'
+    ];
+
+    const ZONES = [
+      'POL-1', 'Drive-2', 'POL-2(1-4)', 'POL-2-5', 'POL-2-6', 'Drive-3',
+      'POL-3-1', 'POL-3-2', 'POL-3-3', 'POL-3-4', 'POL-3-5', 'POL-3-6',
+      'RINSE-2', 'Drive-4'
+    ];
+
+    // 10월 조사 기준 데이터 (Baseline)
+    const BASELINE_OCTOBER = {
+      'WB2-1 PART1': { 'POL-2-6': 'C', 'Drive-3': 'C', 'POL-3-2': 'C', 'POL-3-3': 'C', 'POL-3-6': 'C', 'RINSE-2': 'C', score: 18 },
+      'WB2-1 PART2': { 'POL-2-5': 'B', 'POL-2-6': 'B', 'Drive-3': 'C', 'POL-3-1': 'A', 'POL-3-2': 'C', 'POL-3-3': 'C', 'POL-3-4': 'C', 'POL-3-5': 'C', 'POL-3-6': 'C', 'RINSE-2': 'C', score: 23 },
+      'WB2-2 PART1': { 'POL-3-1': 'C', 'POL-3-3': 'A', 'POL-3-4': 'A', 'POL-3-5': 'B', 'POL-3-6': 'C', 'RINSE-2': 'B', score: 12 },
+      'WB2-2 PART2': { 'POL-3-5': 'A', 'RINSE-2': 'B', score: 3 },
+      'WB2-3 PART1': { 'POL-3-3': 'A', 'RINSE-2': 'A', score: 2 },
+      'WB2-3 PART2': { 'POL-3-3': 'A', 'POL-3-4': 'C', 'POL-3-5': 'A', 'POL-3-6': 'B', 'RINSE-2': 'B', score: 9 },
+      'WB2-4 PART1': { 'POL-2-6': 'A', 'POL-3-4': 'A', 'POL-3-5': 'A', 'POL-3-6': 'A', 'RINSE-2': 'A', score: 5 },
+      'WB2-4 PART2': { 'Drive-3': 'B', 'POL-3-1': 'B', 'POL-3-2': 'C', 'POL-3-3': 'C', 'POL-3-4': 'C', 'POL-3-5': 'C', 'POL-3-6': 'C', 'RINSE-2': 'C', score: 22 },
+      'WB2-5 PART1': { 'POL-3-1': 'B', 'POL-3-2': 'B', 'POL-3-3': 'B', 'POL-3-4': 'A', 'POL-3-5': 'A', 'POL-3-6': 'A', 'RINSE-2': 'B', score: 11 },
+      'WB2-5 PART2': { 'POL-3-3': 'A', 'POL-3-4': 'A', 'POL-3-5': 'A', 'RINSE-2': 'B', score: 5 },
+      'WB2-6 PART1': { 'POL-3-1': 'A', 'POL-3-4': 'A', 'POL-3-6': 'A', 'RINSE-2': 'B', score: 5 },
+      'WB2-6 PART2': { 'POL-3-3': 'A', 'POL-3-4': 'A', 'POL-3-6': 'A', 'RINSE-2': 'B', score: 5 },
+      'WB2-7 PART1': { 'POL-3-2': 'A', 'POL-3-3': 'A', 'POL-3-4': 'A', 'POL-3-5': 'A', 'POL-3-6': 'A', 'RINSE-2': 'B', score: 7 },
+      'WB2-7 PART2': { 'POL-3-2': 'A', 'POL-3-3': 'A', 'POL-3-4': 'A', 'POL-3-5': 'A', 'POL-3-6': 'A', 'RINSE-2': 'B', score: 7 }
+    };
+
+    // 하부 유틸리티 초기 데이터 (11월 조사)
+    const INITIAL_SUB_UTILITY = [
+      { id: 'sub-1', name: 'WB2-1 P1 배기 PCW', category: '배관', octStatus: 'C', currentStatus: 'CL', notes: '배관 외경 녹제거 및 클리닝 완료', date: '2026-11-23' },
+      { id: 'sub-2', name: 'WB2-1 P1 Drive-3 bath 내부', category: '구동부', octStatus: 'C', currentStatus: 'CL', notes: '약품제거 및 중화세척 완료', date: '2026-11-23' },
+      { id: 'sub-3', name: 'WB2-1 P1 Rinse-2 Bath 내부', category: 'Bath', octStatus: 'C', currentStatus: 'CL', notes: '표면 녹제거 완료', date: '2026-11-23' },
+      { id: 'sub-4', name: 'WB2-1 P2 Drive-4 pump', category: '펌프볼트', octStatus: 'C', currentStatus: 'RP', notes: '체결 볼트 SUS316L 전면 교체 완료', date: '2026-11-23' },
+      { id: 'sub-5', name: 'WB2-1 P2 O3-1', category: '펌프볼트', octStatus: 'C', currentStatus: 'RP', notes: '볼트 교체 및 테플론 캡 장착', date: '2026-11-23' },
+      { id: 'sub-6', name: 'WB2-1 P2 Rinse-3 Pump', category: '펌프볼트', octStatus: 'C', currentStatus: 'RP', notes: 'SUS316L 볼트 교체 완료', date: '2026-11-23' },
+      { id: 'sub-7', name: 'WB2-1 P2 O3-2 알루미늄 프로파일', category: '프레임', octStatus: 'B', currentStatus: 'CL', notes: '표면 백화 제거 및 보호제 도포', date: '2026-11-23' },
+      { id: 'sub-8', name: 'WB2-1 P2 O3-2 pump', category: '펌프볼트', octStatus: 'C', currentStatus: 'RP', notes: '볼트 교체 완료', date: '2026-11-23' }
+    ];
+
+    // 앱 런타임 상태 관리
+    let appData = {
+      inspections: {}, // key: "PART__ZONE", value: { status, tags, photo, inspector, date, notes }
+      subUtility: [...INITIAL_SUB_UTILITY]
+    };
+
+    // 로컬 스토리지 키
+    const STORAGE_KEY = 'WB2_CORROSION_MANAGER_V1';
+
+    // 앱 초기화
+    window.addEventListener('DOMContentLoaded', () => {
+      loadData();
+      populateZoneOptions();
+      document.getElementById('inputDate').valueAsDate = new Date();
+      renderAll();
+    });
+
+    // 데이터 로드
+    function loadData() {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        try {
+          appData = JSON.parse(saved);
+        } catch (e) {
+          console.error("저장 데이터 파싱 오류", e);
+        }
+      } else {
+        // 초기 기본값 세팅: 10월 C등급이었던 구간 일부를 'CL(녹제거 완료)' 기본 예시로 탑재
+        preloadInitialCleanedCases();
+      }
+    }
+
+    function preloadInitialCleanedCases() {
+      // 사용자가 바로 전후 비교를 볼 수 있도록 대표 3곳을 녹제거 완료 상태로 샘플 설정
+      appData.inspections['WB2-1 PART1__POL-2-6'] = {
+        status: 'CL',
+        tags: ['약품 녹제거', '중화 세척'],
+        inspector: '서현우 대리',
+        date: '2026-11-23',
+        notes: '산성 흄 제거 및 표면 스케일 완전 제거 완료.',
+        photo: ''
+      };
+      appData.inspections['WB2-1 PART1__Drive-3'] = {
+        status: 'CL',
+        tags: ['약품 녹제거', '방청 코팅 도포'],
+        inspector: '서현우 대리',
+        date: '2026-11-23',
+        notes: '드라이브 프레임 녹제거 완료.',
+        photo: ''
+      };
+      appData.inspections['WB2-1 PART1__RINSE-2'] = {
+        status: 'CL',
+        tags: ['약품 녹제거', '중화 세척', '방청 코팅 도포'],
+        inspector: '제이슨',
+        date: '2026-11-23',
+        notes: '린스 바스 전면 녹제거 완료.',
+        photo: ''
+      };
+      saveToStorage();
+    }
+
+    // 데이터 저장
+    function saveToStorage() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
+    }
+
+    // 데이터 내보내기 (Export JSON)
+    function exportData() {
+      const blob = new Blob([JSON.stringify(appData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `WB2_부식_녹제거_점검데이터_${new Date().toISOString().slice(0,10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    // 데이터 가져오기 (Import JSON)
+    function importData(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          appData = JSON.parse(e.target.result);
+          saveToStorage();
+          renderAll();
+          alert('데이터가 성공적으로 복원되었습니다.');
+        } catch (err) {
+          alert('올바른 백업 JSON 파일이 아닙니다.');
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    // 탭 전환
+    function switchTab(tabName) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+      document.getElementById(`tab-${tabName}`).classList.remove('hidden');
+
+      // PC 헤더 버튼 하이라이트
+      document.querySelectorAll('.nav-btn').forEach(btn => {
+        btn.classList.remove('bg-blue-600', 'text-white');
+        btn.classList.add('text-slate-300');
+      });
+      const activeNav = document.getElementById(`nav-${tabName}`);
+      if (activeNav) {
+        activeNav.classList.add('bg-blue-600', 'text-white');
+        activeNav.classList.remove('text-slate-300');
+      }
+
+      // 모바일 네비 하이라이트
+      document.querySelectorAll('.mobile-nav-btn').forEach(btn => {
+        btn.classList.remove('text-blue-400');
+        btn.classList.add('text-slate-400');
+      });
+
+      renderAll();
+    }
+
+    // 전체 화면 렌더링
+    function renderAll() {
+      renderMatrix();
+      renderKPIs();
+      renderSubUtility();
+      renderGallery();
+      renderReport();
+    }
+
+    // ZONE 선택 옵션 생성
+    function populateZoneOptions() {
+      const select = document.getElementById('inputZone');
+      select.innerHTML = '';
+      ZONES.forEach(z => {
+        const opt = document.createElement('option');
+        opt.value = z;
+        opt.textContent = z;
+        select.appendChild(opt);
+      });
+      onZoneSelectChange();
+    }
+
+    function onEquipOrPartChange() {
+      onZoneSelectChange();
+    }
+
+    function onZoneSelectChange() {
+      const equip = document.getElementById('inputEquip').value;
+      const part = document.getElementById('inputPart').value;
+      const zone = document.getElementById('inputZone').value;
+      const key = `${equip} ${part}__${zone}`;
+      const partKey = `${equip} ${part}`;
+
+      // 10월 Baseline 확인
+      const octStatus = BASELINE_OCTOBER[partKey] && BASELINE_OCTOBER[partKey][zone] ? BASELINE_OCTOBER[partKey][zone] : '통과(정상)';
+      const banner = document.getElementById('zoneHistoryStatus');
+      banner.textContent = octStatus === '통과(정상)' ? '양호 / 미발생' : `${octStatus} 등급`;
+      banner.className = `font-bold px-2 py-0.5 rounded text-xs ${getStatusBadgeClass(octStatus)}`;
+
+      // 기존 점검 기록이 있다면 폼에 세팅
+      const existing = appData.inspections[key];
+      if (existing) {
+        setFormValues(existing);
+      } else {
+        // 신규라면 기본값 세팅
+        document.querySelector('input[name="currentStatus"][value="CL"]').checked = true;
+        document.querySelectorAll('input[name="actionTag"]').forEach(cb => cb.checked = false);
+        document.getElementById('inputNotes').value = '';
+        clearPhoto();
+      }
+    }
+
+    function setFormValues(data) {
+      const radio = document.querySelector(`input[name="currentStatus"][value="${data.status}"]`);
+      if (radio) radio.checked = true;
+
+      document.querySelectorAll('input[name="actionTag"]').forEach(cb => {
+        cb.checked = data.tags && data.tags.includes(cb.value);
+      });
+
+      if (data.inspector) document.getElementById('inputInspector').value = data.inspector;
+      if (data.date) document.getElementById('inputDate').value = data.date;
+      document.getElementById('inputNotes').value = data.notes || '';
+
+      if (data.photo) {
+        document.getElementById('afterPhotoPreview').src = data.photo;
+        document.getElementById('afterPhotoPreview').classList.remove('hidden');
+        document.getElementById('afterPhotoPlaceholder').classList.add('hidden');
+      } else {
+        clearPhoto();
+      }
+    }
+
+    let tempPhotoData = '';
+    function handlePhotoUpload(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        tempPhotoData = e.target.result;
+        const preview = document.getElementById('afterPhotoPreview');
+        preview.src = tempPhotoData;
+        preview.classList.remove('hidden');
+        document.getElementById('afterPhotoPlaceholder').classList.add('hidden');
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function clearPhoto() {
+      tempPhotoData = '';
+      const preview = document.getElementById('afterPhotoPreview');
+      preview.src = '';
+      preview.classList.add('hidden');
+      document.getElementById('afterPhotoPlaceholder').classList.remove('hidden');
+    }
+
+    // 점검 폼 제출 처리
+    function saveInspection(e) {
+      e.preventDefault();
+      const equip = document.getElementById('inputEquip').value;
+      const part = document.getElementById('inputPart').value;
+      const zone = document.getElementById('inputZone').value;
+      const key = `${equip} ${part}__${zone}`;
+
+      const status = document.querySelector('input[name="currentStatus"]:checked').value;
+      const tags = Array.from(document.querySelectorAll('input[name="actionTag"]:checked')).map(cb => cb.value);
+      const inspector = document.getElementById('inputInspector').value;
+      const date = document.getElementById('inputDate').value;
+      const notes = document.getElementById('inputNotes').value;
+
+      const existingPhoto = appData.inspections[key] ? appData.inspections[key].photo : '';
+      const photo = tempPhotoData || existingPhoto;
+
+      appData.inspections[key] = {
+        status,
+        tags,
+        inspector,
+        date,
+        notes,
+        photo
+      };
+
+      saveToStorage();
+      alert(`[${equip} ${part} - ${zone}] 녹제거 점검 결과가 저장되었습니다.`);
+      switchTab('dashboard');
+    }
+
+    // 빠른 점검 셀 클릭 처리
+    function quickInspect(part, zone) {
+      const [equip, p] = part.split(' ');
+      document.getElementById('inputEquip').value = equip;
+      document.getElementById('inputPart').value = p;
+      populateZoneOptions();
+      document.getElementById('inputZone').value = zone;
+      onZoneSelectChange();
+      switchTab('inspect');
+    }
+
+    // 매트릭스 렌더링
+    function renderMatrix() {
+      const tbody = document.getElementById('matrixTableBody');
+      tbody.innerHTML = '';
+
+      PARTS.forEach(part => {
+        const tr = document.createElement('tr');
+        tr.className = "hover:bg-slate-50 transition border-b border-slate-200";
+
+        // Part 열 헤더
+        const th = document.createElement('td');
+        th.className = "p-2.5 text-left font-bold sticky left-0 bg-white z-10 border-r border-slate-200 shadow-[2px_0_4px_rgba(0,0,0,0.04)]";
+        th.textContent = part;
+        tr.appendChild(th);
+
+        let octTotalScore = 0;
+        let curTotalScore = 0;
+
+        // 14개 ZONE 셀
+        ZONES.forEach(zone => {
+          const td = document.createElement('td');
+          td.className = "p-1.5 border-r border-slate-200 cursor-pointer transition hover:opacity-80";
+          td.onclick = () => quickInspect(part, zone);
+
+          const key = `${part}__${zone}`;
+          const octStatus = BASELINE_OCTOBER[part] && BASELINE_OCTOBER[part][zone] ? BASELINE_OCTOBER[part][zone] : null;
+          const curData = appData.inspections[key];
+          const curStatus = curData ? curData.status : octStatus;
+
+          // 점수 계산
+          if (octStatus === 'A') octTotalScore += 1;
+          if (octStatus === 'B') octTotalScore += 2;
+          if (octStatus === 'C') octTotalScore += 3;
+
+          if (curStatus === 'A') curTotalScore += 1;
+          if (curStatus === 'B') curTotalScore += 2;
+          if (curStatus === 'C') curTotalScore += 3;
+          // CL, RP는 0점
+
+          if (curStatus) {
+            td.innerHTML = `
+              <div class="flex flex-col items-center justify-center py-1 rounded ${getCellBg(curStatus)}">
+                <span class="font-black text-xs ${getCellTextColor(curStatus)}">${curStatus}</span>
+                ${octStatus && octStatus !== curStatus ? `<span class="text-[9px] text-slate-400 line-through">${octStatus}</span>` : ''}
+              </div>
+            `;
+          } else {
+            td.innerHTML = `<span class="text-slate-300">-</span>`;
+          }
+
+          tr.appendChild(td);
+        });
+
+        // 부식지수 열
+        const tdScore = document.createElement('td');
+        tdScore.className = "p-2 font-bold bg-slate-50 text-xs";
+        const diff = curTotalScore - octTotalScore;
+        const diffLabel = diff < 0 ? `<span class="text-emerald-600 font-bold ml-1">▼${Math.abs(diff)}</span>` : (diff > 0 ? `<span class="text-red-600 font-bold ml-1">▲${diff}</span>` : `<span class="text-slate-400 ml-1">-</span>`);
+        tdScore.innerHTML = `<span>${octTotalScore} → <strong class="${curTotalScore < octTotalScore ? 'text-emerald-600' : 'text-slate-800'}">${curTotalScore}</strong></span> ${diffLabel}`;
+        tr.appendChild(tdScore);
+
+        tbody.appendChild(tr);
+      });
+    }
+
+    // 색상 헬퍼
+    function getCellBg(status) {
+      switch(status) {
+        case 'CL': return 'bg-sky-100 border border-sky-300';
+        case 'RP': return 'bg-emerald-100 border border-emerald-300';
+        case 'C': return 'bg-red-500 text-white font-black';
+        case 'B': return 'bg-orange-400 text-white font-bold';
+        case 'A': return 'bg-yellow-200 text-yellow-900';
+        default: return 'bg-slate-100';
+      }
+    }
+
+    function getCellTextColor(status) {
+      switch(status) {
+        case 'CL': return 'text-sky-700';
+        case 'RP': return 'text-emerald-700';
+        case 'C': return 'text-white';
+        case 'B': return 'text-white';
+        case 'A': return 'text-yellow-900';
+        default: return 'text-slate-600';
+      }
+    }
+
+    function getStatusBadgeClass(status) {
+      switch(status) {
+        case 'CL': return 'bg-sky-100 text-sky-800 border border-sky-300';
+        case 'RP': return 'bg-emerald-100 text-emerald-800 border border-emerald-300';
+        case 'C': return 'bg-red-100 text-red-800 border border-red-300';
+        case 'B': return 'bg-orange-100 text-orange-800 border border-orange-300';
+        case 'A': return 'bg-yellow-100 text-yellow-800 border border-yellow-300';
+        default: return 'bg-slate-100 text-slate-700';
+      }
+    }
+
+    // KPI 카드 지표 계산 및 렌더링
+    function renderKPIs() {
+      let octTotalScore = 154; // 기준 10월 총점
+      let currentScore = 0;
+      let remainCCount = 0;
+      let cleanCount = 0;
+      let totalCorrosionSpots = 74; // 10월 부식 발생 개소
+
+      PARTS.forEach(part => {
+        ZONES.forEach(zone => {
+          const key = `${part}__${zone}`;
+          const octStatus = BASELINE_OCTOBER[part] && BASELINE_OCTOBER[part][zone] ? BASELINE_OCTOBER[part][zone] : null;
+          const curData = appData.inspections[key];
+          const curStatus = curData ? curData.status : octStatus;
+
+          if (curStatus === 'A') currentScore += 1;
+          if (curStatus === 'B') currentScore += 2;
+          if (curStatus === 'C') {
+            currentScore += 3;
+            remainCCount++;
+          }
+          if (curStatus === 'CL' || curStatus === 'RP') {
+            cleanCount++;
+          }
+        });
+      });
+
+      // 1) 부식지수
+      document.getElementById('kpi-current-index').textContent = currentScore;
+      const reduction = Math.max(0, octTotalScore - currentScore);
+      const reductionRate = Math.round((reduction / octTotalScore) * 100);
+      document.getElementById('kpi-index-change').innerHTML = `<i class="fa-solid fa-arrow-down"></i> 개선율 ${reductionRate}% 달성 (▼${reduction}점)`;
+
+      // 2) C등급 잔여
+      document.getElementById('kpi-c-count').textContent = remainCCount;
+      const cResolved = Math.max(0, 21 - remainCCount);
+      document.getElementById('kpi-c-diff').innerHTML = `<i class="fa-solid fa-check"></i> ${cResolved}개소 조치 완료`;
+
+      // 3) 녹제거 완료율
+      const cleanRate = Math.round((cleanCount / totalCorrosionSpots) * 100);
+      document.getElementById('kpi-clean-rate').textContent = `${cleanRate}%`;
+      document.getElementById('kpi-clean-count').textContent = `(${cleanCount} / ${totalCorrosionSpots}구간)`;
+      document.getElementById('kpi-clean-bar').style.width = `${Math.min(100, cleanRate)}%`;
+
+      // 4) 사진 수
+      let photos = 0;
+      Object.values(appData.inspections).forEach(item => {
+        if (item.photo) photos++;
+      });
+      document.getElementById('kpi-photo-count').textContent = `${photos}장`;
+    }
+
+    // 하부 유틸리티 렌더링
+    function renderSubUtility() {
+      const container = document.getElementById('subUtilityGrid');
+      container.innerHTML = '';
+
+      appData.subUtility.forEach((item, index) => {
+        const div = document.createElement('div');
+        div.className = "p-3 rounded-lg border border-slate-200 bg-slate-50 flex flex-col justify-between space-y-2 text-xs";
+        
+        div.innerHTML = `
+          <div class="flex items-center justify-between">
+            <span class="font-bold text-slate-800">${item.name}</span>
+            <span class="px-2 py-0.5 rounded font-black ${getStatusBadgeClass(item.currentStatus)}">${item.currentStatus}</span>
+          </div>
+          <p class="text-slate-500 text-[11px]">${item.notes || '점검 내용 없음'}</p>
+          <div class="flex items-center justify-between text-[11px] text-slate-400 border-t border-slate-200/60 pt-2">
+            <span>10월 기준: <strong class="text-red-500">${item.octStatus}</strong></span>
+            <button onclick="editSubUtility(${index})" class="text-blue-600 hover:underline">상태변경</button>
+          </div>
+        `;
+        container.appendChild(div);
+      });
+    }
+
+    function openSubInspectionModal() {
+      document.getElementById('subModal').classList.remove('hidden');
+    }
+
+    function closeSubModal() {
+      document.getElementById('subModal').classList.add('hidden');
+    }
+
+    function editSubUtility(index) {
+      const item = appData.subUtility[index];
+      document.getElementById('modalSubPartSelect').value = item.name;
+      document.getElementById('modalSubStatus').value = item.currentStatus;
+      document.getElementById('modalSubNotes').value = item.notes;
+      openSubInspectionModal();
+    }
+
+    function saveSubInspection() {
+      const name = document.getElementById('modalSubPartSelect').value;
+      const status = document.getElementById('modalSubStatus').value;
+      const notes = document.getElementById('modalSubNotes').value;
+
+      const idx = appData.subUtility.findIndex(u => u.name === name);
+      if (idx !== -1) {
+        appData.subUtility[idx].currentStatus = status;
+        appData.subUtility[idx].notes = notes;
+      } else {
+        appData.subUtility.push({
+          id: `sub-${Date.now()}`,
+          name,
+          category: '기타',
+          octStatus: 'C',
+          currentStatus: status,
+          notes,
+          date: new Date().toISOString().slice(0,10)
+        });
+      }
+
+      saveToStorage();
+      closeSubModal();
+      renderAll();
+    }
+
+    // Before & After 갤러리 렌더링
+    function renderGallery() {
+      const grid = document.getElementById('galleryGrid');
+      grid.innerHTML = '';
+
+      const filterEquip = document.getElementById('galleryFilterEquip').value;
+      const filterStatus = document.getElementById('galleryFilterStatus').value;
+
+      let count = 0;
+
+      // 점검된 데이터 순회
+      Object.entries(appData.inspections).forEach(([key, data]) => {
+        const [part, zone] = key.split('__');
+        const equip = part.split(' ')[0];
+
+        if (filterEquip !== 'ALL' && equip !== filterEquip) return;
+        if (filterStatus !== 'ALL' && data.status !== filterStatus) return;
+
+        count++;
+        const card = document.createElement('div');
+        card.className = "bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col";
+
+        const octStatus = BASELINE_OCTOBER[part] && BASELINE_OCTOBER[part][zone] ? BASELINE_OCTOBER[part][zone] : '정상';
+
+        card.innerHTML = `
+          <div class="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+            <div>
+              <span class="text-xs font-bold text-slate-800">${part}</span>
+              <h4 class="text-sm font-black text-blue-600">${zone}</h4>
+            </div>
+            <div class="flex items-center gap-1">
+              <span class="text-xs font-bold px-2 py-0.5 rounded ${getStatusBadgeClass(data.status)}">${data.status} (조치)</span>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2 p-3 bg-slate-100/50">
+            <!-- Before 사진 자리 -->
+            <div class="space-y-1">
+              <span class="text-[10px] font-bold text-slate-500 uppercase">Before (10월 부식)</span>
+              <div class="aspect-square bg-slate-200 rounded-lg flex flex-col items-center justify-center text-slate-400 p-2 text-center text-xs">
+                <i class="fa-solid fa-triangle-exclamation text-red-500 text-lg mb-1"></i>
+                <span class="text-[11px] font-semibold text-slate-600">부식 ${octStatus}등급</span>
+                <span class="text-[9px] text-slate-400">보고서 원본 사진 대조</span>
+              </div>
+            </div>
+
+            <!-- After 사진 -->
+            <div class="space-y-1">
+              <span class="text-[10px] font-bold text-sky-600 uppercase">After (녹제거 완료)</span>
+              <div class="aspect-square bg-slate-200 rounded-lg overflow-hidden flex items-center justify-center">
+                ${data.photo ? `<img src="${data.photo}" class="w-full h-full object-cover cursor-pointer" onclick="viewPhoto('${data.photo}')" alt="After">` : `
+                  <div class="text-center text-slate-400 p-2 text-xs">
+                    <i class="fa-solid fa-camera text-slate-300 text-lg mb-1"></i>
+                    <p class="text-[10px]">사진 미등록</p>
+                  </div>
+                `}
+              </div>
+            </div>
+          </div>
+
+          <div class="p-3 text-xs space-y-1.5 flex-1 flex flex-col justify-between">
+            <div>
+              <p class="text-slate-700 font-medium">${data.notes || '작업 완료'}</p>
+              ${data.tags && data.tags.length > 0 ? `
+                <div class="flex flex-wrap gap-1 mt-1">
+                  ${data.tags.map(t => `<span class="px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 text-[10px] border border-blue-200">#${t}</span>`).join('')}
+                </div>
+              ` : ''}
+            </div>
+            <div class="text-[11px] text-slate-400 border-t border-slate-100 pt-2 flex justify-between">
+              <span>점검자: ${data.inspector || '-'}</span>
+              <span>${data.date || '-'}</span>
+            </div>
+          </div>
+        `;
+
+        grid.appendChild(card);
+      });
+
+      document.getElementById('galleryCountLabel').textContent = `총 ${count}건 표시 중`;
+
+      if (count === 0) {
+        grid.innerHTML = `
+          <div class="col-span-full py-12 text-center text-slate-400">
+            <i class="fa-solid fa-folder-open text-4xl mb-2 text-slate-300"></i>
+            <p class="text-sm">해당 조건에 일치하는 점검 데이터가 없습니다.</p>
+          </div>
+        `;
+      }
+    }
+
+    function viewPhoto(src) {
+      const w = window.open("");
+      w.document.write(`<img src="${src}" style="max-width:100%; height:auto;">`);
+    }
+
+    // 보고서 탭 렌더링
+    function renderReport() {
+      // 매트릭스 표 복제
+      const srcTable = document.getElementById('matrixTable');
+      const targetTable = document.getElementById('reportMatrixTable');
+      targetTable.innerHTML = srcTable.innerHTML;
+
+      // 요약 지표 반영
+      let currentScore = 0;
+      let remainCCount = 0;
+      let cleanCount = 0;
+      let octTotalScore = 154;
+
+      PARTS.forEach(part => {
+        ZONES.forEach(zone => {
+          const key = `${part}__${zone}`;
+          const octStatus = BASELINE_OCTOBER[part] && BASELINE_OCTOBER[part][zone] ? BASELINE_OCTOBER[part][zone] : null;
+          const curData = appData.inspections[key];
+          const curStatus = curData ? curData.status : octStatus;
+
+          if (curStatus === 'A') currentScore += 1;
+          if (curStatus === 'B') currentScore += 2;
+          if (curStatus === 'C') {
+            currentScore += 3;
+            remainCCount++;
+          }
+          if (curStatus === 'CL' || curStatus === 'RP') cleanCount++;
+        });
+      });
+
+      document.getElementById('reportIndexNow').textContent = currentScore;
+      const reduction = Math.max(0, octTotalScore - currentScore);
+      document.getElementById('reportIndexDiffText').textContent = `▼ ${reduction}점 개선`;
+
+      document.getElementById('reportCRemain').textContent = remainCCount;
+      document.getElementById('reportCDiffText').textContent = `${21 - remainCCount}개소 조치 완료`;
+
+      const cleanRate = Math.round((cleanCount / 74) * 100);
+      document.getElementById('reportRateText').textContent = `${cleanRate}%`;
+
+      // 주요 사진 그리드
+      const reportPhotoGrid = document.getElementById('reportPhotoGrid');
+      reportPhotoGrid.innerHTML = '';
+      let photoAdded = 0;
+
+      Object.entries(appData.inspections).forEach(([key, data]) => {
+        if (data.photo && photoAdded < 6) {
+          photoAdded++;
+          const [part, zone] = key.split('__');
+          const div = document.createElement('div');
+          div.className = "border border-slate-200 rounded-lg p-3 space-y-2 text-xs";
+          div.innerHTML = `
+            <div class="flex justify-between font-bold">
+              <span>${part} - ${zone}</span>
+              <span class="text-sky-600">${data.status} (조치완료)</span>
+            </div>
+            <div class="aspect-video bg-slate-100 rounded overflow-hidden">
+              <img src="${data.photo}" class="w-full h-full object-cover">
+            </div>
+            <p class="text-[11px] text-slate-600">${data.notes || '녹제거 및 방청완료'}</p>
+          `;
+          reportPhotoGrid.appendChild(div);
+        }
+      });
+
+      if (photoAdded === 0) {
+        reportPhotoGrid.innerHTML = `<p class="col-span-2 text-slate-400 text-xs text-center py-4">등록된 After 사진이 없습니다. [현장 점검 & 기록] 탭에서 사진을 등록하세요.</p>`;
+      }
+    }
+  </script>
+</body>
+</html>
